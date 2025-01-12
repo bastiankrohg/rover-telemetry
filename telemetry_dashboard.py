@@ -4,7 +4,7 @@ import plotly.graph_objs as go
 import random
 
 # Initialize Dash app
-app = dash.Dash(__name__)
+app = dash.Dash(__name__, suppress_callback_exceptions=True)
 app.title = "Mars Rover Dashboard"
 
 # Simulated telemetry state
@@ -23,7 +23,7 @@ navbar = html.Div(
         html.Nav(
             children=[
                 dcc.Link("Dashboard", href="/", className="nav-link"),
-                dcc.Link("Manual Control", href="/manual", className="nav-link"),
+                dcc.Link("Teleoperation", href="/teleop", className="nav-link"),
                 dcc.Link("Settings", href="/settings", className="nav-link"),
             ],
             className="navbar",
@@ -109,11 +109,11 @@ dashboard_layout = html.Div(
     ]
 )
 
-# Manual control layout (placeholder)
-manual_control_layout = html.Div(
+# Teleop layout (placeholder)
+teleoperation_layout = html.Div(
     children=[
-        html.H1("Manual Control", style={"text-align": "center"}),
-        html.P("Placeholder for manual control interface."),
+        html.H1("Teleoperation", style={"text-align": "center"}),
+        html.P("Placeholder for Teleop interface."),
         dcc.Link("Go back to Dashboard", href="/", className="nav-link"),
     ]
 )
@@ -212,8 +212,8 @@ def update_dashboard(n_intervals):
     [Input("url", "pathname")],
 )
 def display_page(pathname):
-    if pathname == "/manual":
-        return manual_control_layout
+    if pathname == "/teleop":
+        return teleoperation_layout
     elif pathname == "/settings":
         return settings_layout
     else:
