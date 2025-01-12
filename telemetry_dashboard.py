@@ -2,10 +2,10 @@ import dash
 from dash import html, dcc, Input, Output
 import plotly.graph_objs as go
 import random
-from datetime import datetime
 
 # Initialize Dash app
 app = dash.Dash(__name__)
+app.title = "Mars Rover Dashboard"
 
 # Simulated telemetry state
 telemetry_state = {
@@ -16,60 +16,126 @@ telemetry_state = {
     "path_trace": [(0, 0)],  # List of past positions
 }
 
-# Layout of the dashboard
-app.layout = html.Div(
+# Navbar
+navbar = html.Div(
     children=[
-        html.H1("Mars Rover Telemetry Dashboard", style={"text-align": "center"}),
-        
-        # Row 1: Key metrics
+        dcc.Location(id="url", refresh=False),
+        html.Nav(
+            children=[
+                dcc.Link("Dashboard", href="/", className="nav-link"),
+                dcc.Link("Manual Control", href="/manual", className="nav-link"),
+                dcc.Link("Settings", href="/settings", className="nav-link"),
+            ],
+            className="navbar",
+            style={"display": "flex", "gap": "20px", "padding": "10px", "background-color": "#333", "color": "#fff"},
+        ),
+    ]
+)
+
+# Dashboard layout
+dashboard_layout = html.Div(
+    children=[
+        html.H1("Mars Rover Dashboard", style={"text-align": "center"}),
+
+        # Split layout: Video feed (left) and telemetry (right)
         html.Div(
             children=[
+                # Left: Video feed placeholder
                 html.Div(
                     children=[
-                        html.H3("Position"),
-                        html.P(id="position-display"),
+                        html.H3("Video Feed"),
+                        html.Div(
+                            style={
+                                "background-color": "#000",
+                                "height": "400px",
+                                "border": "2px solid #333",
+                                "display": "flex",
+                                "align-items": "center",
+                                "justify-content": "center",
+                                "color": "#fff",
+                            },
+                            children="Video Placeholder",
+                        ),
                     ],
-                    style={"width": "20%", "display": "inline-block"},
+                    style={"width": "50%", "padding": "10px"},
                 ),
+
+                # Right: Telemetry data
                 html.Div(
                     children=[
-                        html.H3("Heading"),
-                        html.P(id="heading-display"),
+                        html.Div(
+                            children=[
+                                html.H3("Position"),
+                                html.P(id="position-display"),
+                            ],
+                            style={"padding": "10px"},
+                        ),
+                        html.Div(
+                            children=[
+                                html.H3("Heading"),
+                                html.P(id="heading-display"),
+                            ],
+                            style={"padding": "10px"},
+                        ),
+                        html.Div(
+                            children=[
+                                html.H3("Battery"),
+                                dcc.Graph(id="battery-bar"),
+                            ],
+                            style={"padding": "10px"},
+                        ),
+                        html.Div(
+                            children=[
+                                html.H3("Proximity"),
+                                dcc.Graph(id="proximity-gauge"),
+                            ],
+                            style={"padding": "10px"},
+                        ),
+                        html.Div(
+                            children=[
+                                dcc.Graph(id="path-trace"),
+                            ],
+                            style={"padding": "10px"},
+                        ),
                     ],
-                    style={"width": "20%", "display": "inline-block"},
-                ),
-                html.Div(
-                    children=[
-                        html.H3("Battery"),
-                        dcc.Graph(id="battery-bar"),
-                    ],
-                    style={"width": "20%", "display": "inline-block"},
-                ),
-                html.Div(
-                    children=[
-                        html.H3("Proximity"),
-                        dcc.Graph(id="proximity-gauge"),
-                    ],
-                    style={"width": "20%", "display": "inline-block"},
+                    style={"width": "50%", "padding": "10px"},
                 ),
             ],
-            style={"display": "flex", "justify-content": "space-around"},
+            style={"display": "flex"},
         ),
 
-        # Row 2: Path trace (local map visualization)
-        html.Div(
-            children=[
-                dcc.Graph(id="path-trace"),
-            ],
-            style={"margin-top": "20px"},
-        ),
-
-        # Hidden interval for periodic updates
+        # Interval for periodic updates
         dcc.Interval(id="update-interval", interval=1000, n_intervals=0),
     ]
 )
 
-# Callback to update dashboard metrics
+# Manual control layout (placeholder)
+manual_control_layout = html.Div(
+    children=[
+        html.H1("Manual Control", style={"text-align": "center"}),
+        html.P("Placeholder for manual control interface."),
+        dcc.Link("Go back to Dashboard", href="/", className="nav-link"),
+    ]
+)
+
+# Settings layout (placeholder)
+settings_layout = html.Div(
+    children=[
+        html.H1("Settings", style={"text-align": "center"}),
+        html.P("Placeholder for settings interface."),
+        dcc.Link("Go back to Dashboard", href="/", className="nav-link"),
+    ]
+)
+
+# App layout
+app.layout = html.Div(
+    children=[
+        navbar,
+        html.Div(id="page-content"),
+    ]
+)
+
+# Callback to update telemetry dashboard
 @app.callback(
     [
         Output("position-display", "children"),
@@ -122,6 +188,7 @@ def update_dashboard(n_intervals):
                 ],
             },
         )
+
     )
 
     # Path trace visualization
@@ -137,6 +204,20 @@ def update_dashboard(n_intervals):
     )
 
     return position_text, heading_text, battery_fig, proximity_fig, path_trace_fig
+
+
+# Callback to manage page navigation
+@app.callback(
+    Output("page-content", "children"),
+    [Input("url", "pathname")],
+)
+def display_page(pathname):
+    if pathname == "/manual":
+        return manual_control_layout
+    elif pathname == "/settings":
+        return settings_layout
+    else:
+        return dashboard_layout
 
 
 # Run the app
