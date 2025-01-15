@@ -1,83 +1,38 @@
-import dash
-from dash import dcc, html, Input, Output
+from dash import Dash, html
+from dash.dependencies import Input, Output
 import dash_bootstrap_components as dbc
-import plotly.graph_objects as go
-import random
+from layout import create_layout
+from grpc_client import TelemetryClient
+import asyncio
+import cv2
+import base64
 
-# Create the Dash app
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+# Initialize Dash app
+app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 app.title = "Rover Telemetry Dashboard"
+app.layout = create_layout()
 
-# Dummy telemetry data
-path_trace = [(0, 0)]
-battery_level = 75  # Percentage
-proximity_status = 1.5  # Distance in meters
-heading = 45.0  # Dummy heading value
+# Initialize gRPC client
+telemetry_client = TelemetryClient(host="<pi-ip-address>")
 
-# Define layout
-app.layout = dbc.Container(
-    [
-        html.H1("Rover Telemetry Dashboard", className="text-center my-4"),
-        dbc.Row(
-            [
-                # Left section: telemetry and mapping
-                dbc.Col(
-                    [
-                        # Telemetry (Battery and Proximity)
-                        dbc.Row(
-                            [
-                                dbc.Col(html.Div(id="battery-visual"), width=6),
-                                dbc.Col(html.Div(id="proximity-indicator"), width=6),
-                            ],
-                            className="mb-3",
-                        ),
-                        # System state and telemetry details
-                        dbc.Row(
-                            [
-                                dbc.Col(html.Div(id="system-state-display"), width=4),
-                                dbc.Col(html.Div(id="position-display"), width=4),
-                                dbc.Col(html.Div(id="heading-display"), width=4),
-                            ],
-                            className="mb-3",
-                        ),
-                        # Path trace visualization
-                        dbc.Row(
-                            [
-                                dbc.Col(
-                                    dcc.Graph(
-                                        id="path-trace",
-                                        config={"displayModeBar": False},
-                                    ),
-                                    width=12,
-                                ),
-                            ]
-                        ),
-                    ],
-                    width=6,
-                ),
-                # Right section: video feed
-                dbc.Col(
-                    html.Div(
-                        id="video-feed",
-                        style={
-                            "height": "100%",
-                            "background-color": "lightgray",
-                            "text-align": "center",
-                            "line-height": "100%",
-                            "border": "2px solid black",
-                        },
-                        children=["Video Feed Placeholder"],
-                    ),
-                    width=6,
-                ),
-            ],
-            style={"height": "100vh"},  # Full height layout
-        ),
-        dcc.Interval(id="update-interval", interval=1000, n_intervals=0),
-    ],
-    fluid=True,
-)
+# Coroutine for streaming telemetry
+async def stream_telemetry():
+    async for telemetry_data in telemetry_client.stream_telemetry():
+        yield telemetry_data
 
+# Function to fetch video frame
+def fetch_video_frame(rtsp_url):
+    cap = cv2.VideoCapture(rtsp_url)
+    ret, frame = cap.read()
+    if not ret:
+        cap.release()
+        return None
+    frame = cv2.resize(frame, (640, 360))
+    _, buffer = cv2.imencode(".jpg", frame)
+    cap.release()
+    return base64.b64encode(buffer).decode("utf-8")
+
+# Callback to update dashboard
 @app.callback(
     [
         Output("path-trace", "figure"),
@@ -86,98 +41,80 @@ app.layout = dbc.Container(
         Output("heading-display", "children"),
         Output("battery-visual", "children"),
         Output("proximity-indicator", "children"),
+        Output("video-feed", "children"),
     ],
     [Input("update-interval", "n_intervals")],
 )
 def update_dashboard(n_intervals):
-    global path_trace, battery_level, proximity_status, heading
+    # Telemetry data defaults
+    default_data = {
+        "ultrasound_distance": 0.0,
+        "odometer": 0.0,
+        "current_position": "x: 0.0, y: 0.0",
+        "heading": 0.0,
+        "search_mode": "N/A",
+        "resources_found": [],
+        "battery_status": "100%",
+    }
 
-    # Update path trace with dummy movement
-    x, y = path_trace[-1]
-    new_position = (x + random.uniform(-1, 1), y + random.uniform(-1, 1))
-    path_trace.append(new_position)
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
 
-    # Path trace figure
-    trace_fig = go.Figure()
-    trace_fig.add_trace(
-        go.Scatter(
-            x=[p[0] for p in path_trace],
-            y=[p[1] for p in path_trace],
-            mode="lines+markers",
-            line=dict(color="blue"),
-            marker=dict(size=8),
-            name="Path",
+    # Fetch telemetry data
+    try:
+        telemetry_data = loop.run_until_complete(
+            telemetry_client.stream_telemetry().__anext__()
         )
-    )
-    trace_fig.update_layout(
-        title="Path Trace",
-        xaxis=dict(range=[-20, 20], title="X Position"),
-        yaxis=dict(range=[-20, 20], title="Y Position"),
-        height=500,
-        margin=dict(l=10, r=10, t=30, b=10),
-        xaxis_scaleanchor="y",  # Keep X and Y scales identical
-        xaxis_constrain="domain",
-        yaxis_constrain="domain",
-    )
+    except StopIteration:
+        telemetry_data = default_data
 
-    # System state and telemetry data
-    system_state = "System State: Running"
-    position = f"Position: ({new_position[0]:.2f}, {new_position[1]:.2f})"
-    heading_text = f"Heading: {heading:.2f}°"
+    # Extract telemetry data
+    position = telemetry_data["current_position"]
+    heading = telemetry_data["heading"]
+    battery_status = telemetry_data["battery_status"]
+    proximity_distance = telemetry_data["ultrasound_distance"]
 
-    # Battery visual
-    battery_segments = 5
-    filled_segments = int((battery_level / 100) * battery_segments)
-    battery_children = [
-        html.Div(
-            style={
-                "background-color": "green" if i < filled_segments else "lightgray",
-                "height": "20px",
-                "width": "20px",
-                "border": "1px solid black",
-                "margin": "1px",
-                "display": "inline-block",
+    # Generate visualizations
+    path_trace_figure = {
+        "data": [
+            {
+                "x": [float(position.split(",")[0].split(":")[1])],
+                "y": [float(position.split(",")[1].split(":")[1])],
+                "type": "scatter",
+                "mode": "lines+markers",
             }
-        )
-        for i in range(battery_segments)
-    ]
-    battery_children.append(
-        html.Div(
-            style={
-                "background-color": "black",
-                "height": "20px",
-                "width": "5px",
-                "margin-left": "2px",
-                "display": "inline-block",
-            }
-        )
-    )
-    battery_div = html.Div(
-        children=[
-            html.Div("Battery", style={"text-align": "center"}),
-            html.Div(battery_children, style={"display": "flex", "justify-content": "center", "margin-top": "10px"}),
-        ]
+        ],
+        "layout": {
+            "xaxis": {"range": [-20, 20]},
+            "yaxis": {"range": [-20, 20]},
+            "title": "Path Trace",
+        },
+    }
+    battery_visual = f"Battery: {battery_status}"
+    proximity_indicator = html.Div(
+        f"Proximity: {proximity_distance:.2f}m",
+        style={
+            "color": "green" if proximity_distance > 2 else "orange" if proximity_distance > 1 else "red",
+        },
     )
 
-    # Proximity indicator
-    proximity_color = "green" if proximity_status > 2 else "orange" if proximity_status > 1 else "red"
-    proximity_div = html.Div(
-        children=[
-            html.Div("Proximity", style={"text-align": "center"}),
-            html.Div(
-                style={
-                    "background-color": proximity_color,
-                    "height": "50px",
-                    "width": "50px",
-                    "border-radius": "25px",
-                    "margin": "10px auto",
-                },
-            ),
-            html.Div(f"{proximity_status:.2f} m", style={"text-align": "center", "margin-top": "10px"}),
-        ]
+    # Fetch video feed
+    rtsp_url = "rtsp://<pi-ip-address>:5054/cam"
+    frame = fetch_video_frame(rtsp_url)
+    video_feed = html.Img(
+        src=f"data:image/jpeg;base64,{frame}" if frame else "",
+        style={"width": "100%", "height": "100%", "object-fit": "contain"},
     )
 
-    return trace_fig, system_state, position, heading_text, battery_div, proximity_div
+    return (
+        path_trace_figure,
+        f"System State: OK",
+        f"Position: {position}",
+        f"Heading: {heading}°",
+        battery_visual,
+        proximity_indicator,
+        video_feed,
+    )
 
 
 if __name__ == "__main__":
