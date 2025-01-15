@@ -1,1 +1,3 @@
 telemetry_env/
+test/
+client_errors.log
