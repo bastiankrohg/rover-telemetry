@@ -1,3 +1,4 @@
 telemetry_env/
 test/
 client_errors.log
+__pycache__/

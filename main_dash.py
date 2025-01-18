@@ -18,7 +18,7 @@ LOCAL_UDP_IP = "127.0.0.1"
 LOCAL_UDP_PORT = 60000
 
 # Initialize Dash app
-app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], suppress_callback_exceptions=True)
+app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 app.title = "Rover Telemetry Dashboard"
 
 # Buffers for telemetry data
@@ -26,100 +26,76 @@ path_history = deque(maxlen=1000)
 data_buffer = {"x": [], "y": [], "battery": [], "ultrasound": [], "heading": []}
 last_update_time = {"timestamp": None}
 
-# Navbar
-navbar = dbc.NavbarSimple(
-    children=[
-        dbc.NavItem(dcc.Link("Telemetry Dashboard", href="/", className="nav-link")),
-        dbc.NavItem(dcc.Link("Sensor Measurements", href="/sensors", className="nav-link")),
-    ],
-    brand="Rover Dashboard",
-    color="primary",
-    dark=True,
-)
-
 # Telemetry Dashboard Layout
-def telemetry_dashboard():
-    return dbc.Container(
-        [
-            html.H1("Rover Telemetry Dashboard", className="text-center my-4"),
-            html.Div(id="backend-status", className="text-center my-2", style={"font-size": "1.5em", "font-weight": "bold"}),
-            dbc.Row(
-                [
-                    dbc.Col(
-                        dcc.Graph(id="path-trace", style={"height": "360px"}), width=6
-                    ),
-                    dbc.Col(
-                        html.Div(
-                            id="video-feed",
-                            style={
-                                "height": "360px",
-                                "background-color": "lightgray",
-                                "border": "2px solid black",
-                                "text-align": "center",
-                            },
-                        ),
-                        width=6,
-                    ),
-                ],
-                className="mb-4",
-            ),
-            dbc.Row(
-                [
-                    dbc.Col(html.Div(id="system-state-display"), width=3),
-                    dbc.Col(html.Div(id="position-display"), width=3),
-                    dbc.Col(html.Div(id="heading-display"), width=3),
-                    dbc.Col(html.Div(id="battery-visual"), width=3),
-                ],
-                className="mb-3",
-            ),
-            dbc.Row(
-                [
-                    dbc.Col(html.Div(id="proximity-indicator"), width=6),
-                ]
-            ),
-        ],
-        fluid=True,
-    )
-
-# Sensor Measurements Layout
-def sensor_measurements():
-    return dbc.Container(
-        [
-            html.H1("Sensor Measurements", className="text-center my-4"),
-            dbc.Row(
-                [
-                    dbc.Col(
-                        dcc.Graph(id="battery-graph", style={"height": "400px"}), width=6
-                    ),
-                    dbc.Col(
-                        dcc.Graph(id="ultrasound-graph", style={"height": "400px"}), width=6
-                    ),
-                ],
-                className="mb-4",
-            ),
-        ],
-        fluid=True,
-    )
-
-# App Layout
 app.layout = html.Div(
     [
-        dcc.Location(id="url", refresh=False),
-        navbar,
-        html.Div(id="page-content"),
         dcc.Interval(id="update-interval", interval=1000, n_intervals=0),
+        dbc.Container(
+            [
+                html.H1("Rover Telemetry Dashboard", className="text-center my-4"),
+                html.Div(
+                    id="backend-status",
+                    className="text-center my-2",
+                    style={"font-size": "1.5em", "font-weight": "bold"},
+                ),
+                dbc.Row(
+                    [
+                        dbc.Col(
+                            dcc.Graph(id="path-trace", style={"height": "360px"}), width=6
+                        ),
+                        dbc.Col(
+                            html.Div(
+                                id="video-feed",
+                                style={
+                                    "height": "360px",
+                                    "background-color": "lightgray",
+                                    "border": "2px solid black",
+                                    "text-align": "center",
+                                },
+                            ),
+                            width=6,
+                        ),
+                    ],
+                    className="mb-4",
+                ),
+                dbc.Row(
+                    [
+                        dbc.Col(html.Div(id="system-state-display"), width=3),
+                        dbc.Col(html.Div(id="position-display"), width=3),
+                        dbc.Col(html.Div(id="heading-display"), width=3),
+                        dbc.Col(html.Div(id="battery-visual"), width=3),
+                    ],
+                    className="mb-3",
+                ),
+                dbc.Row(
+                    [
+                        dbc.Col(html.Div(id="proximity-indicator"), width=6),
+                    ]
+                ),
+                html.Hr(),
+                # Sensor Measurement History Section
+                html.H3(
+                    "Sensor Measurement History",
+                    className="text-center my-4",
+                    style={"font-weight": "bold"},
+                ),
+                dbc.Row(
+                    [
+                        dbc.Col(
+                            dcc.Graph(id="battery-graph", style={"height": "400px"}), width=6
+                        ),
+                        dbc.Col(
+                            dcc.Graph(id="ultrasound-graph", style={"height": "400px"}), width=6
+                        ),
+                    ],
+                ),
+            ],
+            fluid=True,
+        ),
     ]
 )
 
-# Page Routing Callback
-@app.callback(Output("page-content", "children"), [Input("url", "pathname")])
-def display_page(pathname):
-    if pathname == "/sensors":
-        return sensor_measurements()
-    else:
-        return telemetry_dashboard()
-
-# Dashboard Callback
+# Dash Callback
 @app.callback(
     [
         Output("backend-status", "children"),
@@ -129,6 +105,8 @@ def display_page(pathname):
         Output("heading-display", "children"),
         Output("battery-visual", "children"),
         Output("proximity-indicator", "children"),
+        Output("battery-graph", "figure"),
+        Output("ultrasound-graph", "figure"),
     ],
     [
         Input("update-interval", "n_intervals"),
@@ -179,12 +157,40 @@ def update_dashboard(n_intervals):
             "layout": {"title": "Path Trace", "xaxis": {"range": x_range}, "yaxis": {"range": y_range}},
         }
 
-        return backend_status, path_trace_figure, "System State: OK", f"x: {x_start:.2f}, y: {y_start:.2f}", f"{heading:.2f}°", f"{battery:.2f}%", f"{ultrasound:.2f} m"
+        # Battery graph
+        battery_fig = {
+            "data": [
+                {
+                    "x": list(range(len(data_buffer["battery"]))),
+                    "y": data_buffer["battery"],
+                    "type": "line",
+                    "name": "Battery",
+                }
+            ],
+            "layout": {"title": "Battery Over Time", "xaxis": {"title": "Time"}, "yaxis": {"title": "%"}},
+        }
+
+        # Ultrasound graph
+        ultrasound_fig = {
+            "data": [
+                {
+                    "x": list(range(len(data_buffer["ultrasound"]))),
+                    "y": data_buffer["ultrasound"],
+                    "type": "line",
+                    "name": "Ultrasound",
+                }
+            ],
+            "layout": {"title": "Ultrasound Over Time", "xaxis": {"title": "Time"}, "yaxis": {"title": "Distance (m)"}},
+        }
+
+        return backend_status, path_trace_figure, "System State: OK", f"x: {x_start:.2f}, y: {y_start:.2f}", f"{heading:.2f}°", f"{battery:.2f}%", f"{ultrasound:.2f} m", battery_fig, ultrasound_fig
 
     except socket.timeout:
         backend_status = "🔴 Rover Telemetry Dashboard"
         path_trace_figure = {"data": [], "layout": {"title": "Path Trace"}}
-        return backend_status, path_trace_figure, "No telemetry data available", "N/A", "N/A", "N/A", "N/A"
+        battery_fig = {"data": [], "layout": {"title": "Battery Over Time"}}
+        ultrasound_fig = {"data": [], "layout": {"title": "Ultrasound Over Time"}}
+        return backend_status, path_trace_figure, "No telemetry data available", "N/A", "N/A", "N/A", "N/A", battery_fig, ultrasound_fig
 
 
 # UDP Listener Thread
