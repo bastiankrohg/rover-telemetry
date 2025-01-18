@@ -1,133 +1,137 @@
+import threading
 import socket
 import json
-import threading
-from queue import Queue
-
+import time
 from dash import Dash, dcc, html
 from dash.dependencies import Output, Input
-import plotly.graph_objs as go
-import dash_bootstrap_components as dbc
 
 # UDP Configuration
 UDP_IP = "127.0.0.1"
-UDP_PORT = 50054
-telemetry_queue = Queue()  # Shared queue for communication
+UDP_PORT = 50055
 
-# Buffer for plotting
-data_buffer = {
-    "x": [],
-    "y": [],
-    "battery": [],
-    "ultrasound": [],
-    "heading": []
+# Shared data and lock
+shared_telemetry_data = {
+    "position": {"x": "N/A", "y": "N/A"},
+    "battery_level": "N/A",
+    "ultrasound_distance": "N/A",
+    "heading": "N/A"
 }
+data_lock = threading.Lock()
 
+# Dash App Initialization
+app = Dash(__name__)
 
+# Layout
+app.layout = html.Div([
+    html.H1("Telemetry Dashboard", style={"textAlign": "center"}),
+    html.Div(
+        id="connection-status",
+        style={
+            "width": "120px",
+            "height": "40px",
+            "border": "1px solid black",
+            "borderRadius": "5px",
+            "textAlign": "center",
+            "lineHeight": "40px",
+            "margin": "10px auto",
+        },
+    ),
+    html.Div([
+        html.Div([
+            html.H4("Position (X, Y):"),
+            html.P(id="position-data", style={"fontSize": "18px"}),
+        ], style={"marginBottom": "20px"}),
+        html.Div([
+            html.H4("Battery Level:"),
+            html.P(id="battery-data", style={"fontSize": "18px"}),
+        ], style={"marginBottom": "20px"}),
+        html.Div([
+            html.H4("Ultrasound Distance:"),
+            html.P(id="ultrasound-data", style={"fontSize": "18px"}),
+        ], style={"marginBottom": "20px"}),
+        html.Div([
+            html.H4("Heading:"),
+            html.P(id="heading-data", style={"fontSize": "18px"}),
+        ], style={"marginBottom": "20px"}),
+    ], style={"textAlign": "center"}),
+    dcc.Interval(id="update-interval", interval=1000, n_intervals=0)
+])
+
+# Dash Callback
+@app.callback(
+    [
+        Output("connection-status", "children"),
+        Output("connection-status", "style"),
+        Output("position-data", "children"),
+        Output("battery-data", "children"),
+        Output("ultrasound-data", "children"),
+        Output("heading-data", "children"),
+    ],
+    [Input("update-interval", "n_intervals")]
+)
+def update_dashboard(n_intervals):
+    # Debugging: Log callback trigger and interval
+    print(f"Dashboard callback triggered at interval: {n_intervals}")
+
+    # Access shared data
+    with data_lock:
+        telemetry_data = shared_telemetry_data.copy()
+
+    # Debugging: Log current shared data
+    print(f"Current shared data: {telemetry_data}")
+
+    # Extract data
+    position = telemetry_data["position"]
+    battery_level = telemetry_data["battery_level"]
+    ultrasound_distance = telemetry_data["ultrasound_distance"]
+    heading = telemetry_data["heading"]
+
+    # Update connection status
+    is_connected = position != {"x": "N/A", "y": "N/A"}
+    connection_status = "Connected" if is_connected else "Disconnected"
+    connection_style = {"backgroundColor": "green" if is_connected else "red", "color": "white"}
+
+    # Update dashboard data
+    position_data = f"X: {position['x']}, Y: {position['y']}" if is_connected else "N/A"
+    battery_data = f"{battery_level}%" if is_connected else "N/A"
+    ultrasound_data = f"{ultrasound_distance} m" if is_connected else "N/A"
+    heading_data = f"{heading}°" if is_connected else "N/A"
+
+    return connection_status, connection_style, position_data, battery_data, ultrasound_data, heading_data
+
+# UDP Listener
 def udp_listener():
-    """Listen for incoming UDP messages."""
+    """Listen for incoming UDP messages and update shared data."""
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as client_socket:
         client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-        # Attempt to bind to the specified port
         try:
             client_socket.bind((UDP_IP, UDP_PORT))
             print(f"Listening on {UDP_IP}:{UDP_PORT}")
         except OSError as e:
-            print(f"Port {UDP_PORT} is in use. Trying a different port...")
-            client_socket.bind((UDP_IP, 0))  # Bind to an available port
-            print(f"Listening on {client_socket.getsockname()}")
+            print(f"Error binding to port {UDP_PORT}: {e}")
+            return
 
         while True:
-            data, addr = client_socket.recvfrom(1024)
-            telemetry_data = json.loads(data.decode("utf-8"))
-            telemetry_queue.put(telemetry_data)  # Push data to the queue
-            print(f"Received from {addr}: {telemetry_data}")
+            try:
+                data, addr = client_socket.recvfrom(1024)
+                telemetry_data = json.loads(data.decode("utf-8"))
+                # Debugging: Log received data
+                print(f"Received data: {telemetry_data}")
 
+                with data_lock:
+                    shared_telemetry_data.update(telemetry_data)
 
-# Start UDP listener in a separate thread
+                # Debugging: Log shared data update
+                print(f"Updated shared data: {shared_telemetry_data}")
+            except Exception as e:
+                # Debugging: Log any listener errors
+                print(f"Error in UDP listener: {e}")
+
+# Start the UDP Listener in a Thread
 listener_thread = threading.Thread(target=udp_listener, daemon=True)
 listener_thread.start()
 
-# Create a Dash app
-app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
-
-# Define the layout of the dashboard
-app.layout = html.Div([
-    html.H1("Telemetry Dashboard", style={"textAlign": "center"}),
-    html.Div([
-        dcc.Graph(id="position_graph", style={"display": "inline-block", "width": "48%"}),
-        dcc.Graph(id="battery_graph", style={"display": "inline-block", "width": "48%"})
-    ]),
-    html.Div([
-        dcc.Graph(id="ultrasound_graph", style={"display": "inline-block", "width": "48%"}),
-        dcc.Graph(id="heading_graph", style={"display": "inline-block", "width": "48%"})
-    ]),
-    dcc.Interval(id="update_interval", interval=1000, n_intervals=0)  # Update every second
-])
-
-
-@app.callback(
-    [
-        Output("position_graph", "figure"),
-        Output("battery_graph", "figure"),
-        Output("ultrasound_graph", "figure"),
-        Output("heading_graph", "figure")
-    ],
-    [Input("update_interval", "n_intervals")]
-)
-def update_graphs(n_intervals):
-    while not telemetry_queue.empty():
-        telemetry_data = telemetry_queue.get()
-        # Update buffers
-        data_buffer["x"].append(telemetry_data["position"]["x"])
-        data_buffer["y"].append(telemetry_data["position"]["y"])
-        data_buffer["battery"].append(telemetry_data["battery_level"])
-        data_buffer["ultrasound"].append(telemetry_data["ultrasound_distance"])
-        data_buffer["heading"].append(telemetry_data["heading"])
-
-        # Limit buffer size
-        for key in data_buffer:
-            if len(data_buffer[key]) > 100:  # Keep only the latest 100 data points
-                data_buffer[key].pop(0)
-
-    # Position graph
-    position_fig = go.Figure(data=go.Scatter(
-        x=data_buffer["x"],
-        y=data_buffer["y"],
-        mode="lines+markers",
-        name="Position"
-    ))
-    position_fig.update_layout(title="Position (X, Y)", xaxis_title="X", yaxis_title="Y")
-
-    # Battery graph
-    battery_fig = go.Figure(data=go.Scatter(
-        x=list(range(len(data_buffer["battery"]))),
-        y=data_buffer["battery"],
-        mode="lines+markers",
-        name="Battery Level"
-    ))
-    battery_fig.update_layout(title="Battery Level (%)", xaxis_title="Time", yaxis=dict(range=[0, 100]))
-
-    # Ultrasound graph
-    ultrasound_fig = go.Figure(data=go.Scatter(
-        x=list(range(len(data_buffer["ultrasound"]))),
-        y=data_buffer["ultrasound"],
-        mode="lines+markers",
-        name="Ultrasound Distance"
-    ))
-    ultrasound_fig.update_layout(title="Ultrasound Distance (m)", xaxis_title="Time", yaxis_title="Distance")
-
-    # Heading graph
-    heading_fig = go.Figure(data=go.Scatter(
-        x=list(range(len(data_buffer["heading"]))),
-        y=data_buffer["heading"],
-        mode="lines+markers",
-        name="Heading"
-    ))
-    heading_fig.update_layout(title="Heading (°)", xaxis_title="Time", yaxis_title="Degrees")
-
-    return position_fig, battery_fig, ultrasound_fig, heading_fig
-
-
+# Run the Dash App
 if __name__ == "__main__":
     app.run_server(debug=True)

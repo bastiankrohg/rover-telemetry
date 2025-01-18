@@ -4,7 +4,7 @@ import time
 import math
 
 UDP_IP = "127.0.0.1"
-UDP_PORT = 50054
+UDP_PORT = 50055
 
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # Allow socket reuse
