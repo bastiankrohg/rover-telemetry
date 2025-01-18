@@ -1,22 +1,16 @@
 import threading
 import socket
 import json
-import time
 from dash import Dash, dcc, html
 from dash.dependencies import Output, Input
 
-# UDP Configuration
-UDP_IP = "127.0.0.1"
-UDP_PORT = 50055
+# External UDP Configuration
+EXTERNAL_UDP_IP = "127.0.0.1"
+EXTERNAL_UDP_PORT = 50055
 
-# Shared data and lock
-shared_telemetry_data = {
-    "position": {"x": "N/A", "y": "N/A"},
-    "battery_level": "N/A",
-    "ultrasound_distance": "N/A",
-    "heading": "N/A"
-}
-data_lock = threading.Lock()
+# Local UDP Configuration for Dashboard
+LOCAL_UDP_IP = "127.0.0.1"
+LOCAL_UDP_PORT = 60000
 
 # Dash App Initialization
 app = Dash(__name__)
@@ -70,63 +64,64 @@ app.layout = html.Div([
     [Input("update-interval", "n_intervals")]
 )
 def update_dashboard(n_intervals):
-    # Debugging: Log callback trigger and interval
-    print(f"Dashboard callback triggered at interval: {n_intervals}")
+    # Connect to the local UDP socket to fetch data
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as client_socket:
+            client_socket.settimeout(1.0)  # Timeout after 1 second
+            client_socket.bind((LOCAL_UDP_IP, LOCAL_UDP_PORT))
+            data, _ = client_socket.recvfrom(1024)
+            telemetry_data = json.loads(data.decode("utf-8"))
 
-    # Access shared data
-    with data_lock:
-        telemetry_data = shared_telemetry_data.copy()
+        # Extract telemetry data
+        position = telemetry_data["position"]
+        battery_level = telemetry_data["battery_level"]
+        ultrasound_distance = telemetry_data["ultrasound_distance"]
+        heading = telemetry_data["heading"]
 
-    # Debugging: Log current shared data
-    print(f"Current shared data: {telemetry_data}")
+        # Connection status
+        connection_status = "Connected"
+        connection_style = {"backgroundColor": "green", "color": "white"}
 
-    # Extract data
-    position = telemetry_data["position"]
-    battery_level = telemetry_data["battery_level"]
-    ultrasound_distance = telemetry_data["ultrasound_distance"]
-    heading = telemetry_data["heading"]
+        # Dashboard data
+        position_data = f"X: {position['x']}, Y: {position['y']}"
+        battery_data = f"{battery_level}%"
+        ultrasound_data = f"{ultrasound_distance} m"
+        heading_data = f"{heading}°"
 
-    # Update connection status
-    is_connected = position != {"x": "N/A", "y": "N/A"}
-    connection_status = "Connected" if is_connected else "Disconnected"
-    connection_style = {"backgroundColor": "green" if is_connected else "red", "color": "white"}
-
-    # Update dashboard data
-    position_data = f"X: {position['x']}, Y: {position['y']}" if is_connected else "N/A"
-    battery_data = f"{battery_level}%" if is_connected else "N/A"
-    ultrasound_data = f"{ultrasound_distance} m" if is_connected else "N/A"
-    heading_data = f"{heading}°" if is_connected else "N/A"
+    except socket.timeout:
+        # No data received
+        connection_status = "Disconnected"
+        connection_style = {"backgroundColor": "red", "color": "white"}
+        position_data = battery_data = ultrasound_data = heading_data = "N/A"
 
     return connection_status, connection_style, position_data, battery_data, ultrasound_data, heading_data
 
-# UDP Listener
-def udp_listener():
-    """Listen for incoming UDP messages and update shared data."""
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as client_socket:
-        client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
+# UDP Listener Thread
+def udp_listener():
+    """Listen for incoming UDP messages and forward them locally."""
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as external_socket:
+        external_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
-            client_socket.bind((UDP_IP, UDP_PORT))
-            print(f"Listening on {UDP_IP}:{UDP_PORT}")
+            external_socket.bind((EXTERNAL_UDP_IP, EXTERNAL_UDP_PORT))
+            print(f"Listening on {EXTERNAL_UDP_IP}:{EXTERNAL_UDP_PORT} for external data")
         except OSError as e:
-            print(f"Error binding to port {UDP_PORT}: {e}")
+            print(f"Error binding to external port: {e}")
             return
 
-        while True:
-            try:
-                data, addr = client_socket.recvfrom(1024)
-                telemetry_data = json.loads(data.decode("utf-8"))
-                # Debugging: Log received data
-                print(f"Received data: {telemetry_data}")
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as local_socket:
+            while True:
+                try:
+                    data, addr = external_socket.recvfrom(1024)
+                    telemetry_data = json.loads(data.decode("utf-8"))
 
-                with data_lock:
-                    shared_telemetry_data.update(telemetry_data)
+                    # Forward data to local UDP port
+                    local_socket.sendto(data, (LOCAL_UDP_IP, LOCAL_UDP_PORT))
+                    print(f"Forwarded telemetry data: {telemetry_data}")
 
-                # Debugging: Log shared data update
-                print(f"Updated shared data: {shared_telemetry_data}")
-            except Exception as e:
-                # Debugging: Log any listener errors
-                print(f"Error in UDP listener: {e}")
+                except Exception as e:
+                    print(f"Error in UDP listener: {e}")
+
 
 # Start the UDP Listener in a Thread
 listener_thread = threading.Thread(target=udp_listener, daemon=True)
