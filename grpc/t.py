@@ -4,7 +4,7 @@ from dash import Dash, html
 from dash.dependencies import Input, Output
 import dash_bootstrap_components as dbc
 from layout import create_layout
-from grpc_client import TelemetryClient
+from grpc.grpc_client import TelemetryClient
 import cv2
 import base64
 from collections import deque

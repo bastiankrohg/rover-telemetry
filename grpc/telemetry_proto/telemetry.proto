@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+package marsrover;
+
+import "google/protobuf/wrappers.proto";
+
+// Service definition for telemetry
+service TelemetryService {
+  rpc StreamTelemetry(EmptyRequest) returns (stream TelemetryData);
+}
+
+// Empty request message
+message EmptyRequest {}
+
+// Telemetry data message
+message TelemetryData {
+  // Ultrasound distance measurement (meters)
+  float ultrasound_distance = 1;
+
+  // Odometer reading (meters)
+  float odometer = 2;
+
+  // Current position and heading of the rover
+  Position position = 3;
+  float heading = 4; // Degrees (0-360)
+
+  // Search mode: 0 = Pattern Pursuit, 1 = Resource Seeking
+  SearchMode search_mode = 5;
+
+  // List of resources found
+  repeated Resource resources_found = 6;
+
+  // Current battery level (percentage)
+  float battery_level = 7;
+
+  // Optional camera image (JPEG bytes)
+  google.protobuf.BytesValue camera_image = 8;
+}
+
+// Position message for rover's location
+message Position {
+  float x = 1; // X-coordinate
+  float y = 2; // Y-coordinate
+}
+
+// Resource data message
+message Resource {
+  string type = 1;    // Resource type (e.g., "rock", "water")
+  Position location = 2; // Resource position
+}
+
+// Search mode enumeration
+enum SearchMode {
+  PATTERN_PURSUIT = 0;
+  RESOURCE_SEEKING = 1;
+}
