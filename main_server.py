@@ -10,7 +10,7 @@ server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # Allow socket reuse
 
 try:
-    print(f"Starting dummy server on {UDP_IP}:{UDP_PORT}")
+    print(f"Starting server on {UDP_IP}:{UDP_PORT}")
     while True:
         # TODO LG Fetch actual telemetry data
             # TODO LG Position
