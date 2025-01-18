@@ -1,6 +1,7 @@
 import threading
 import socket
 import json
+import time
 from collections import deque
 from dash import Dash, dcc, html
 from dash.dependencies import Output, Input, State
@@ -16,12 +17,15 @@ LOCAL_UDP_IP = "127.0.0.1"
 LOCAL_UDP_PORT = 60000
 
 # Initialize Dash app
-app = Dash(__name__, external_stylesheets=["https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css"])
+app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 app.title = "Rover Telemetry Dashboard"
 
 # Buffer for path and telemetry data
 path_history = deque(maxlen=1000)
 data_buffer = {"x": [], "y": [], "battery": [], "ultrasound": [], "heading": []}
+
+# Track the last update time
+last_update_time = {"timestamp": None}
 
 # Dashboard Layout
 app.layout = html.Div([
@@ -41,14 +45,14 @@ app.layout = html.Div([
                 dbc.Col([
                     dcc.Graph(id="path-trace", style={"height": "360px"}),
                     html.Div([
-                        html.Label("Path Trace Orientation:"),
+                        html.Label("Path Trace Centering:"),
                         dcc.RadioItems(
                             id="orientation-toggle",
                             options=[
-                                {"label": "North-Up", "value": "north"},
-                                {"label": "Heading-Up", "value": "heading"},
+                                {"label": "Center on Rover", "value": "rover"},
+                                {"label": "Center on Origin", "value": "origin"},
                             ],
-                            value="north",
+                            value="rover",
                             inline=True
                         ),
                     ], style={"text-align": "center", "margin-top": "10px"})
@@ -101,7 +105,8 @@ app.layout = html.Div([
         Input("orientation-toggle", "value"),
     ]
 )
-def update_dashboard(n_intervals, orientation_toggle):
+def update_dashboard(n_intervals, centering_option):
+    global last_update_time
     try:
         # Connect to local UDP to fetch data
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as client_socket:
@@ -119,16 +124,21 @@ def update_dashboard(n_intervals, orientation_toggle):
         data_buffer["heading"].append(telemetry_data["heading"])
         path_history.append((position["x"], position["y"]))
 
+        # Update the last update time
+        last_update_time["timestamp"] = time.time()
+
         # Backend status and title
         backend_status_text = "🟢 Rover Telemetry Dashboard"
 
         # Path trace figure
-        if orientation_toggle == "north":
-            x_range = [position["x"] - 10, position["x"] + 10]
-            y_range = [position["y"] - 10, position["y"] + 10]
-        else:  # Heading-up orientation
-            x_range = [-10, 10]
-            y_range = [-10, 10]
+        if centering_option == "rover":
+            # Center the graph around the rover's last position
+            x_center, y_center = position["x"], position["y"]
+            x_range = [x_center - 10, x_center + 10]
+            y_range = [y_center - 10, y_center + 10]
+        else:  # Center on Origin
+            x_range = [-20, 20]
+            y_range = [-20, 20]
 
         path_trace_figure = {
             "data": [
