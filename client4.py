@@ -125,11 +125,13 @@ def update_dashboard(n_intervals, centering_option):
         # Update the last update time
         last_update_time["timestamp"] = time.time()
 
-        # Path trace figure with heading indicator
+                # Path trace figure with heading indicator
         x_start, y_start = position["x"], position["y"]
-        heading_rad = math.radians(heading)
-        x_end = x_start + 5 * math.cos(heading_rad)
-        y_end = y_start + 5 * math.sin(heading_rad)
+        heading_rad = math.radians(heading)  # Convert heading to radians
+
+        # Adjust for 0° = North (up) and clockwise rotation
+        x_end = x_start + 5 * math.sin(heading_rad)  # X-coordinate
+        y_end = y_start + 5 * math.cos(heading_rad)  # Y-coordinate
 
         if centering_option == "rover":
             # Center the graph around the rover's last position
