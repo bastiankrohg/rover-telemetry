@@ -1,7 +1,7 @@
 from dash import Dash, html
 from dash.dependencies import Input, Output
 import dash_bootstrap_components as dbc
-from layout import create_layout
+from test.layout import create_layout
 from grpc.grpc_client import TelemetryClient
 import asyncio
 import cv2
