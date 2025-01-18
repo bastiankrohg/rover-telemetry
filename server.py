@@ -8,7 +8,7 @@ def generate_telemetry_data():
     return TelemetryData(
         ultrasound_distance=1.5,
         odometer=12.34,
-        current_position="x: 5.0, y: 3.0",
+        position="x: 5.0, y: 3.0",
         heading=45.0,
         search_mode="Pattern Pursuit",
         resources_found=[],
