@@ -2,7 +2,7 @@ from dash import Dash, dcc, html
 import dash_bootstrap_components as dbc
 from dash.dependencies import Output, Input
 import json
-from udp_listener import last_received_data  # Ensure this is the correct import for telemetry data
+from udp_listener import last_received_data  # Ensure this is correctly imported for telemetry data
 
 # Initialize Dash app
 app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -59,16 +59,17 @@ app.layout = html.Div([
 )
 def update_dashboard(n_intervals):
     try:
+        # Load telemetry data from UDP listener
         telemetry_data = json.loads(last_received_data)
 
         # Extract telemetry data
-        position = telemetry_data["position"]
-        heading = telemetry_data["heading"]
-        battery = telemetry_data["battery_level"]
-        ultrasound = telemetry_data["ultrasound_distance"]
+        position = telemetry_data.get("position", {"x": 0.0, "y": 0.0})
+        heading = telemetry_data.get("heading", 0.0)
+        battery = telemetry_data.get("battery_level", 100.0)
+        ultrasound = telemetry_data.get("ultrasound_distance", 0.0)
         system_state = telemetry_data.get("system_state", {})
 
-        # Prepare data for dashboard
+        # Prepare data for dashboard components
         path_trace_figure = {
             "data": [
                 {
@@ -79,24 +80,35 @@ def update_dashboard(n_intervals):
                     "name": "Path",
                 },
             ],
-            "layout": {"title": "Path Trace", "xaxis": {"range": [-10, 10]}, "yaxis": {"range": [-10, 10]}},
+            "layout": {
+                "title": "Path Trace",
+                "xaxis": {"range": [-20, 20]},
+                "yaxis": {"range": [-20, 20]}
+            },
         }
 
         battery_graph = {
-            "data": [{"x": [0], "y": [battery], "type": "line"}],
+            "data": [{"x": list(range(len([battery]))), "y": [battery], "type": "line"}],
             "layout": {"title": "Battery Over Time", "xaxis": {"title": "Time"}, "yaxis": {"title": "%"}},
         }
 
         ultrasound_graph = {
-            "data": [{"x": [0], "y": [ultrasound], "type": "line"}],
+            "data": [{"x": list(range(len([ultrasound]))), "y": [ultrasound], "type": "line"}],
             "layout": {"title": "Ultrasound Over Time", "xaxis": {"title": "Time"}, "yaxis": {"title": "Distance (m)"}},
         }
 
-        # Return data to dashboard components
+        system_state_display = (
+            f"CPU: {system_state.get('cpu_usage', 'N/A')}% | "
+            f"Memory: {system_state.get('memory_available', 'N/A')} MB | "
+            f"Disk: {system_state.get('disk_usage', 'N/A')}% | "
+            f"Temperature: {system_state.get('temperature', 'N/A')}"
+        )
+
+        # Return updates for dashboard
         return (
             "🟢 Backend Connected",
             path_trace_figure,
-            f"CPU: {system_state.get('cpu_usage', 'N/A')}% | Memory: {system_state.get('memory_available', 'N/A')} MB",
+            system_state_display,
             f"x: {position['x']:.2f}, y: {position['y']:.2f}",
             f"{heading:.2f}°",
             f"{battery:.2f}%",
