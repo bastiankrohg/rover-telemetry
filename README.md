@@ -1,122 +1,127 @@
-# Rover Telemetry Dashboard
+# Rover Telemetry System
 
-This repository provides a lightweight solution for visualizing telemetry data from a rover system using UDP communication. The project includes a simple UDP server to simulate telemetry data, a UDP client to receive and forward data for visualization, and a responsive Dash-based telemetry dashboard.
+This project is a telemetry system for visualizing real-time data from a rover. It includes components for gathering system metrics, transmitting data via UDP, and visualizing telemetry through an interactive dashboard.
 
-## Key Components
+## Project Structure
 
-1. client.py (UDP Client)
-
-The UDP client serves as the bridge between the rover’s telemetry data and the visualization dashboard. It listens for incoming telemetry data, processes it, and forwards it to the dashboard for real-time visualization.
-
-## Features:
-	•	UDP Communication:
-	•	Listens on a local UDP port for incoming telemetry data.
-	•	Processes JSON-encoded telemetry data from the rover (or the dummy server).
-	•	Forwards data to the Dash dashboard for visualization.
-	•	Thread-Safe Design:
-	•	Runs as a daemon thread to ensure non-blocking operation with the dashboard.
-	•	Error Handling:
-	•	Handles socket binding errors and timeouts gracefully to ensure stability.
-
-## Configuration:
-	•	External UDP Server:
-	•	IP: 127.0.0.1
-	•	Port: 50055
-	•	Local UDP Port for Dashboard:
-	•	IP: 127.0.0.1
-	•	Port: 60000
-
-## Usage:
-	1.	Start the dummy2.py server to simulate telemetry data.
-	2.	Run client.py to listen for and forward telemetry data.
-	3.	The dashboard will render real-time telemetry metrics.
-
-2. dummy2.py (UDP Server)
-
-The UDP server simulates a telemetry data stream from a rover, sending JSON-encoded data packets over UDP.
-
-## Features:
-	•	Simulated Telemetry Data:
-	•	Periodically sends telemetry data, including:
-	•	Position: x, y coordinates.
-	•	Heading: Rover’s orientation in degrees.
-	•	Battery Level: Remaining charge percentage.
-	•	Ultrasound Distance: Distance from obstacles in meters.
-	•	Configurable Frequency:
-	•	The server sends data packets at regular intervals (1 second by default).
-
-## Configuration:
-	•	Target UDP Client:
-	•	IP: 127.0.0.1
-	•	Port: 50055
-
-## Usage:
-	1.	Run dummy2.py to start the server.
-	2.	Observe the console output to verify the data being sent.
-
-3. GRPC Aspects
-
-This project initially explored gRPC for transmitting telemetry data. However, due to the lightweight nature and efficiency of UDP communication, gRPC has been deprecated in favor of this simpler approach.
-
-## Reasons for Transition:
-	•	Lower Overhead: UDP’s simplicity eliminates the need for gRPC’s complex infrastructure.
-	•	Lightweight Design: Ideal for real-time telemetry updates where packet loss is tolerable.
-	•	Ease of Implementation: Straightforward setup without requiring additional gRPC libraries or server configurations.
-
-## System Architecture
-
-[ Dummy UDP Server (dummy2.py) ]
-             ↓
-   (UDP Packets over 127.0.0.1:50055)
-             ↓
-[ UDP Client (client.py) ]
-             ↓
- (UDP Packets forwarded to 127.0.0.1:60000)
-             ↓
-[ Dash Dashboard ]
-
-## How to Run
-
-## Prerequisites
-	•	Python 3.8 or later
-	•	Required Python libraries:
-	•	dash
-	•	plotly
-	•	dash-bootstrap-components
-
-## Install dependencies using:
-```bash
-pip install dash plotly dash-bootstrap-components
+```
+├── main_dash.py         # UDP client that visualizes the dashboard
+├── main_server.py       # UDP server that gathers telemetry data (now includes system status info)
+├── dummy_server.py      # Test server with dummy data for dashboard testing
+├── test/                # Folder containing all tests during development
+│   ├── grpc/            # Tests for gRPC implementations
+│   ├── udp/             # Tests for UDP components
+│   └── various/         # Alternative approaches and exploratory tests
+├── telemetry_env/       # Virtual environment for running the system (Mac setup, will adapt for Pi Zero)
+└── README.md            # Project documentation
 ```
 
-## Steps
-	1.	Start the UDP Server:
-Run dummy2.py to simulate telemetry data:
+## Components
+
+1. Dashboard (main_dash.py)
+
+The interactive dashboard is the main visualization tool for telemetry data. It uses Dash with the following features:
+	•	Path Trace Visualization: Tracks the rover’s movement over time, with an indicator for heading.
+	•	Real-Time System Metrics:
+	•	CPU Usage
+	•	Memory Usage
+	•	Disk Usage
+	•	System Temperature
+	•	Uptime
+	•	Sensor Measurements: Displays battery levels and ultrasound readings over time.
+
+2. Telemetry Server (main_server.py)
+
+The UDP server collects and broadcasts telemetry data. It now integrates system status metrics using the psutil library and Raspberry Pi-specific tools for system temperature. Key functionalities:
+	•	Sends telemetry data such as position, heading, battery level, and ultrasound distance.
+	•	Monitors system metrics (e.g., CPU, memory, disk usage, temperature).
+	•	Includes a placeholder for fetching actual rover data.
+
+3. Dummy Server (dummy_server.py)
+
+A simplified server used during development to test the dashboard without connecting to actual rover hardware. It generates dummy telemetry data and sends it over UDP.
+
+4. Tests (test/)
+
+This folder contains tests developed during experimentation, including:
+	•	gRPC vs. UDP performance tests.
+	•	Tests for different telemetry formats.
+	•	Simulations for client-server communication.
+
+5. Virtual Environment (telemetry_env/)
+
+A Python virtual environment for managing dependencies. The current version is configured for macOS. A new environment should be created for deployment on the Raspberry Pi Zero.
+
+## Installation
+1.	Clone the repository:
 ```bash
-python dummy2.py
+git clone https://github.com/your-repo-name/rover-telemetry.git
+cd rover-telemetry
 ```
 
-	2.	Run the UDP Client:
-Start client.py to listen for telemetry data and forward it to the dashboard:
+2.	Set up a virtual environment:
 ```bash
-python client.py
+python3 -m venv telemetry_env
+source telemetry_env/bin/activate  # macOS/Linux
+telemetry_env\Scripts\activate     # Windows
 ```
 
-	3.	Open the Dashboard:
-Access the telemetry dashboard at http://127.0.0.1:8050.
+3.	Install dependencies:
+```bash
+pip install -r requirements.txt
+```
 
-## Dashboard Features
-	•	Real-Time Telemetry Visualization:
-	•	Dynamic path trace visualization.
-	•	Metrics including position, heading, battery level, and proximity.
-	•	Connection Status:
-	•	Title displays a 🟢 or 🔴 emoji based on the backend connection status.
-	•	Toggle Orientation:
-	•	Switch between “North-Up” and “Heading-Up” views for the path trace.
+4.	If running on a Raspberry Pi, ensure psutil and vcgencmd are available:
 
-## Future Enhancements
-	•	Integration of live video feed for a comprehensive rover control system.
-	•	Extending the dashboard to include additional sensors or telemetry data streams.
-	•	Deployment-ready packaging for cross-platform usage.
+```bash
+sudo apt update
+sudo apt install python3-psutil
+```
 
-This lightweight solution is ideal for real-time visualization of telemetry data in resource-constrained environments. Feedback and contributions are welcome! 🚀
+## Usage
+
+1. Run the Telemetry Server
+```bash
+python3 main_server.py
+```
+
+2. Run the Dashboard
+```bash
+python3 main_dash.py
+```
+
+3. Test with Dummy Server
+
+To test the dashboard with simulated data:
+```bash
+python3 dummy_server.py
+```
+## Telemetry Data Format
+
+The telemetry data broadcast by the server is in JSON format:
+```json
+{
+    "position": {"x": 10.0, "y": 5.0},
+    "heading": 123.45,
+    "battery_level": 85.0,
+    "ultrasound_distance": 2.5,
+    "system_state": {
+        "cpu_usage": 23.5,
+        "memory_available": 256.0,
+        "memory_total": 512.0,
+        "disk_usage": 42.1,
+        "temperature": 45.2,
+        "uptime": 12345.6
+    }
+}
+```
+
+Next Steps
+	1.	Complete main_server.py:
+	•	Replace placeholders with actual rover telemetry data.
+	•	Test system metrics collection on the Raspberry Pi Zero.
+	2.	Adapt Virtual Environment for Pi Zero:
+	•	Recreate the virtual environment on the Pi Zero to account for its architecture.
+	3.	Systemctl Service:
+	•	Configure main_server.py as a systemctl service for reliability and auto-restart on crashes.
+
