@@ -2,3 +2,4 @@ telemetry_env/
 test/
 client_errors.log
 __pycache__/
+stream.mjpeg
