@@ -18,7 +18,6 @@ class MJPEGHandler(BaseHTTPRequestHandler):
                 if current_frame is None:
                     continue
                 frame_data = cv2.imencode(".jpg", current_frame)[1].tobytes()
-
             try:
                 self.wfile.write(b"--frame\r\n")
                 self.wfile.write(b"Content-Type: image/jpeg\r\n\r\n")
@@ -28,26 +27,27 @@ class MJPEGHandler(BaseHTTPRequestHandler):
                 break
 
 def start_mjpeg_server(port=8081):
+    """Start the MJPEG server."""
     server = HTTPServer(("0.0.0.0", port), MJPEGHandler)
     print(f"Starting MJPEG server on port {port}")
     server.serve_forever()
 
 def start_camera_stream():
-    threading.Thread(target=start_mjpeg_server, args=(8081,), daemon=True).start()
-
+    """Capture frames from the camera."""
+    global current_frame
     cap = cv2.VideoCapture(VIDEO_SOURCE)
     if not cap.isOpened():
         print(f"Error: Could not open video source {VIDEO_SOURCE}")
         return
 
-    global current_frame
     while True:
         ret, frame = cap.read()
         if not ret:
             print("Error: Failed to fetch frame.")
             break
-
         with frame_lock:
             current_frame = frame
 
-    cap.release()
+if __name__ == "__main__":
+    threading.Thread(target=start_camera_stream, daemon=True).start()
+    start_mjpeg_server(port=8081)
