@@ -25,7 +25,6 @@ class MJPEGHandler(BaseHTTPRequestHandler):
                 frame_data = cv2.imencode(".jpg", current_frame)[1].tobytes()
 
             try:
-                # Write the frame to the client
                 self.wfile.write(b"--frame\r\n")
                 self.wfile.write(b"Content-Type: image/jpeg\r\n\r\n")
                 self.wfile.write(frame_data)
@@ -34,39 +33,38 @@ class MJPEGHandler(BaseHTTPRequestHandler):
             except BrokenPipeError:
                 print("Client disconnected")
                 break
-            
-# Start MJPEG server in a separate thread
-def start_mjpeg_server(port=8080):
+
+def start_mjpeg_server(port=8081):
+    """Start the MJPEG server in a separate thread."""
     server = HTTPServer(("0.0.0.0", port), MJPEGHandler)
     print(f"Starting MJPEG server on port {port}")
-    server.serve_forever()
+    threading.Thread(target=server.serve_forever, daemon=True).start()
 
-# Start MJPEG server in a thread
-threading.Thread(target=start_mjpeg_server, daemon=True).start()
+def start_camera_stream():
+    """Start capturing frames from the camera."""
+    global current_frame
+    cap = cv2.VideoCapture(VIDEO_SOURCE)
+    if not cap.isOpened():
+        print(f"Error: Could not open video source {VIDEO_SOURCE}")
+        return
 
-# OpenCV stream
-cap = cv2.VideoCapture(VIDEO_SOURCE)
-if not cap.isOpened():
-    print(f"Error: Could not open video source {VIDEO_SOURCE}")
-    exit()
+    print("Press 'q' to exit.")
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            print("Error: Failed to fetch frame.")
+            break
 
-print("Press 'q' to exit.")
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        print("Error: Failed to fetch frame.")
-        break
+        # Store the frame for MJPEG server
+        with frame_lock:
+            current_frame = frame
 
-    # Display the frame in OpenCV window
-    cv2.imshow("Camera Stream", frame)
+        # Display the frame locally (optional)
+        cv2.imshow("Camera Stream", frame)
 
-    # Store the frame for MJPEG server
-    with frame_lock:
-        current_frame = frame
+        # Exit on 'q' key press
+        if cv2.waitKey(1) & 0xFF == ord("q"):
+            break
 
-    # Exit on 'q' key press
-    if cv2.waitKey(1) & 0xFF == ord("q"):
-        break
-
-cap.release()
-cv2.destroyAllWindows()
+    cap.release()
+    cv2.destroyAllWindows()
