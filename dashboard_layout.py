@@ -80,15 +80,19 @@ def update_dashboard(n_intervals):
     global last_valid_data, last_valid_time
 
     try:
+        # Attempt to retrieve data from the queue
         telemetry_data = None
         try:
             telemetry_data = telemetry_queue.get_nowait()
-            last_valid_data = json.loads(telemetry_data)
-            last_valid_time = time.time()
+            last_valid_data = json.loads(telemetry_data)  # Parse JSON data
+            last_valid_time = time.time()  # Update the last valid data time
         except Empty:
+            # If no new data, check if cached data is still valid
             if time.time() - last_valid_time > DATA_TIMEOUT:
+                print("Dashboard update warning: No telemetry data available yet.")
                 raise ValueError("No telemetry data available yet.")
 
+        # Use the latest valid data
         telemetry_data = last_valid_data
 
         # Extract telemetry data
@@ -103,23 +107,23 @@ def update_dashboard(n_intervals):
         ultrasound_buffer.append(ultrasound)
         cpu_usage = system_state.get("cpu_usage", 0)
         cpu_buffer.append(cpu_usage)
-        path_history.append((position["x"], position["y"]))
 
-        # Center path trace toggle
-        center_path = n_intervals % 2 == 0  # Example toggle logic
-        if center_path:
-            x_range = [position["x"] - 10, position["x"] + 10]
-            y_range = [position["y"] - 10, position["y"] + 10]
-        else:
-            x_range = [-20, 20]
-            y_range = [-20, 20]
+        # Prepare data for path trace
+        path_history.append((position["x"], position["y"]))  # Add current position to history
 
-        # Path trace figure
+        # Convert deques to lists
+        path_x = [p[0] for p in list(path_history)]
+        path_y = [p[1] for p in list(path_history)]
+
+        # Path trace centered on the current position
+        x_range = [position["x"] - 10, position["x"] + 10]
+        y_range = [position["y"] - 10, position["y"] + 10]
+
         path_trace_figure = {
             "data": [
                 {
-                    "x": [p[0] for p in path_history],
-                    "y": [p[1] for p in path_history],
+                    "x": path_x,
+                    "y": path_y,
                     "type": "scatter",
                     "mode": "lines+markers",
                     "line": {"color": "blue"},
@@ -167,7 +171,7 @@ def update_dashboard(n_intervals):
 
         # System state display
         system_state_display = html.Div([
-            html.Div(f"CPU Usage: {cpu_usage}%", style={"font-size": "16px", "font-weight": "bold"}),
+            html.Div(f"CPU Usage: {system_state.get('cpu_usage', 'N/A')}%", style={"font-size": "16px", "font-weight": "bold"}),
             html.Div(f"Memory Available: {system_state.get('memory_available', 'N/A')} MB", style={"font-size": "16px"}),
             html.Div(f"Disk Usage: {system_state.get('disk_usage', 'N/A')}%", style={"font-size": "16px"}),
         ])
