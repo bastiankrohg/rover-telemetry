@@ -71,7 +71,7 @@ app.layout = html.Div([
     ],
     [Input("update-interval", "n_intervals")]
 )
-def update_dashboard(n_intervals):
+def update_dashboard(n_intervals, toggle_values):
     global last_valid_data, last_valid_time
 
     try:
@@ -84,6 +84,7 @@ def update_dashboard(n_intervals):
         except Empty:
             # If no new data, check if cached data is still valid
             if time.time() - last_valid_time > DATA_TIMEOUT:
+                print("Dashboard update warning: No telemetry data available yet.")
                 raise ValueError("No telemetry data available yet.")
 
         # Use the latest valid data
@@ -96,8 +97,23 @@ def update_dashboard(n_intervals):
         ultrasound = telemetry_data["ultrasound_distance"]
         system_state = telemetry_data.get("system_state", {})
 
+        # Append data to buffers
+        battery_buffer.append(battery)
+        ultrasound_buffer.append(ultrasound)
+        cpu_usage = system_state.get("cpu_usage", 0)
+        cpu_buffer.append(cpu_usage)
+
         # Prepare data for path trace
         path_history.append((position["x"], position["y"]))  # Add current position to history
+
+        # Determine if the path trace should be centered on the current position
+        center_path = "centered" in toggle_values
+        if center_path:
+            x_range = [position["x"] - 10, position["x"] + 10]
+            y_range = [position["y"] - 10, position["y"] + 10]
+        else:
+            x_range = [-20, 20]
+            y_range = [-20, 20]
 
         path_trace_figure = {
             "data": [
@@ -120,26 +136,53 @@ def update_dashboard(n_intervals):
             ],
             "layout": {
                 "title": "Path Trace",
-                "xaxis": {"range": [-20, 20], "title": "X Position"},
-                "yaxis": {"range": [-20, 20], "title": "Y Position"},
+                "xaxis": {"range": x_range, "title": "X Position"},
+                "yaxis": {"range": y_range, "title": "Y Position"},
             },
         }
 
+        # Battery graph
         battery_graph = {
-            "data": [{"x": [0], "y": [battery], "type": "line"}],
-            "layout": {"title": "Battery Over Time", "xaxis": {"title": "Time"}, "yaxis": {"title": "%"}},
+            "data": [
+                {"x": list(range(len(battery_buffer))), "y": battery_buffer, "type": "line", "name": "Battery Level"}
+            ],
+            "layout": {"title": "Battery Over Time", "xaxis": {"title": "Time"}, "yaxis": {"title": "%", "range": [0, 100]}},
         }
 
+        # Ultrasound graph
         ultrasound_graph = {
-            "data": [{"x": [0], "y": [ultrasound], "type": "line"}],
+            "data": [
+                {"x": list(range(len(ultrasound_buffer))), "y": ultrasound_buffer, "type": "line", "name": "Ultrasound Distance"}
+            ],
             "layout": {"title": "Ultrasound Over Time", "xaxis": {"title": "Time"}, "yaxis": {"title": "Distance (m)"}},
         }
 
+        # CPU graph
+        cpu_graph = {
+            "data": [
+                {"x": list(range(len(cpu_buffer))), "y": cpu_buffer, "type": "line", "name": "CPU Usage"}
+            ],
+            "layout": {"title": "CPU Usage Over Time", "xaxis": {"title": "Time"}, "yaxis": {"title": "Usage (%)", "range": [0, 100]}},
+        }
+
+        # System state display
         system_state_display = html.Div([
             html.Div(f"CPU Usage: {system_state.get('cpu_usage', 'N/A')}%", style={"font-size": "16px", "font-weight": "bold"}),
             html.Div(f"Memory Available: {system_state.get('memory_available', 'N/A')} MB", style={"font-size": "16px"}),
             html.Div(f"Disk Usage: {system_state.get('disk_usage', 'N/A')}%", style={"font-size": "16px"}),
         ])
+
+        # Proximity indicator
+        proximity_indicator = html.Div(
+            f"Ultrasound Proximity: {ultrasound:.2f} m",
+            style={
+                "text-align": "center",
+                "padding": "10px",
+                "font-size": "20px",
+                "font-weight": "bold",
+                "color": "green" if ultrasound > 1.0 else "red",
+            },
+        )
 
         # Return updates for dashboard
         return (
@@ -149,9 +192,10 @@ def update_dashboard(n_intervals):
             f"x: {position['x']:.2f}, y: {position['y']:.2f}",
             f"{heading:.2f}°",
             f"{battery:.2f}%",
-            f"{ultrasound:.2f} m",
+            proximity_indicator,
             battery_graph,
             ultrasound_graph,
+            cpu_graph,
         )
 
     except ValueError as ve:
@@ -163,9 +207,10 @@ def update_dashboard(n_intervals):
             "N/A",
             "N/A",
             "N/A",
-            "N/A",
+            html.Div("No data", style={"text-align": "center"}),
             {"data": [], "layout": {"title": "Battery Over Time"}},
             {"data": [], "layout": {"title": "Ultrasound Over Time"}},
+            {"data": [], "layout": {"title": "CPU Usage Over Time"}},
         )
     except Exception as e:
         print(f"Error updating dashboard: {e}")
@@ -176,7 +221,8 @@ def update_dashboard(n_intervals):
             "N/A",
             "N/A",
             "N/A",
-            "N/A",
+            html.Div("No data", style={"text-align": "center"}),
             {"data": [], "layout": {"title": "Battery Over Time"}},
             {"data": [], "layout": {"title": "Ultrasound Over Time"}},
+            {"data": [], "layout": {"title": "CPU Usage Over Time"}},
         )
