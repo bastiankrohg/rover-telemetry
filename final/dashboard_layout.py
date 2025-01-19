@@ -33,9 +33,9 @@ app.layout = html.Div([
                 html.Div(
                     html.Img(
                         src="http://127.0.0.1:8081/",
-                        style={"width": "100%", "height": "100%", "object-fit": "contain", "border": "2px solid black"}
+                        style={"width": "100%", "height": "100%", "object-fit": "contain"}
                     ),
-                    style={"height": "520px", "background-color": "lightgray", "padding": "10px"}
+                    style={"height": "520px", "background-color": "lightgray"}
                 )
             ]), width=6),
         ], className="mb-4"),
