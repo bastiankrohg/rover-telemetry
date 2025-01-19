@@ -16,11 +16,12 @@ last_valid_data = None
 last_valid_time = 0
 DATA_TIMEOUT = 5  # seconds
 
-
-# Initialize path history
+# Buffers for telemetry data
+battery_buffer = deque(maxlen=1000)  # Battery history buffer
+ultrasound_buffer = deque(maxlen=1000)  # Ultrasound history buffer
+cpu_buffer = deque(maxlen=1000)  # CPU usage history buffer
 path_history = deque(maxlen=1000)
 
-# Define the app layout
 app.layout = html.Div([
     dcc.Interval(id="update-interval", interval=1000, n_intervals=0),
     dbc.Container([
@@ -54,6 +55,9 @@ app.layout = html.Div([
             dbc.Col(dcc.Graph(id="battery-graph", style={"height": "400px"}), width=6),
             dbc.Col(dcc.Graph(id="ultrasound-graph", style={"height": "400px"}), width=6),
         ]),
+        dbc.Row([
+            dbc.Col(dcc.Graph(id="cpu-graph", style={"height": "400px"}), width=6),  # Added CPU graph
+        ]),
     ], fluid=True),
 ])
 
@@ -68,26 +72,23 @@ app.layout = html.Div([
         Output("proximity-indicator", "children"),
         Output("battery-graph", "figure"),
         Output("ultrasound-graph", "figure"),
+        Output("cpu-graph", "figure"),
     ],
     [Input("update-interval", "n_intervals")]
 )
-def update_dashboard(n_intervals, toggle_values):
+def update_dashboard(n_intervals):
     global last_valid_data, last_valid_time
 
     try:
-        # Attempt to retrieve data from the queue
         telemetry_data = None
         try:
             telemetry_data = telemetry_queue.get_nowait()
-            last_valid_data = json.loads(telemetry_data)  # Parse JSON data
-            last_valid_time = time.time()  # Update the last valid data time
+            last_valid_data = json.loads(telemetry_data)
+            last_valid_time = time.time()
         except Empty:
-            # If no new data, check if cached data is still valid
             if time.time() - last_valid_time > DATA_TIMEOUT:
-                print("Dashboard update warning: No telemetry data available yet.")
                 raise ValueError("No telemetry data available yet.")
 
-        # Use the latest valid data
         telemetry_data = last_valid_data
 
         # Extract telemetry data
@@ -102,12 +103,10 @@ def update_dashboard(n_intervals, toggle_values):
         ultrasound_buffer.append(ultrasound)
         cpu_usage = system_state.get("cpu_usage", 0)
         cpu_buffer.append(cpu_usage)
+        path_history.append((position["x"], position["y"]))
 
-        # Prepare data for path trace
-        path_history.append((position["x"], position["y"]))  # Add current position to history
-
-        # Determine if the path trace should be centered on the current position
-        center_path = "centered" in toggle_values
+        # Center path trace toggle
+        center_path = n_intervals % 2 == 0  # Example toggle logic
         if center_path:
             x_range = [position["x"] - 10, position["x"] + 10]
             y_range = [position["y"] - 10, position["y"] + 10]
@@ -115,6 +114,7 @@ def update_dashboard(n_intervals, toggle_values):
             x_range = [-20, 20]
             y_range = [-20, 20]
 
+        # Path trace figure
         path_trace_figure = {
             "data": [
                 {
@@ -144,7 +144,7 @@ def update_dashboard(n_intervals, toggle_values):
         # Battery graph
         battery_graph = {
             "data": [
-                {"x": list(range(len(battery_buffer))), "y": battery_buffer, "type": "line", "name": "Battery Level"}
+                {"x": list(range(len(battery_buffer))), "y": list(battery_buffer), "type": "line", "name": "Battery Level"}
             ],
             "layout": {"title": "Battery Over Time", "xaxis": {"title": "Time"}, "yaxis": {"title": "%", "range": [0, 100]}},
         }
@@ -152,7 +152,7 @@ def update_dashboard(n_intervals, toggle_values):
         # Ultrasound graph
         ultrasound_graph = {
             "data": [
-                {"x": list(range(len(ultrasound_buffer))), "y": ultrasound_buffer, "type": "line", "name": "Ultrasound Distance"}
+                {"x": list(range(len(ultrasound_buffer))), "y": list(ultrasound_buffer), "type": "line", "name": "Ultrasound Distance"}
             ],
             "layout": {"title": "Ultrasound Over Time", "xaxis": {"title": "Time"}, "yaxis": {"title": "Distance (m)"}},
         }
@@ -160,14 +160,14 @@ def update_dashboard(n_intervals, toggle_values):
         # CPU graph
         cpu_graph = {
             "data": [
-                {"x": list(range(len(cpu_buffer))), "y": cpu_buffer, "type": "line", "name": "CPU Usage"}
+                {"x": list(range(len(cpu_buffer))), "y": list(cpu_buffer), "type": "line", "name": "CPU Usage"}
             ],
             "layout": {"title": "CPU Usage Over Time", "xaxis": {"title": "Time"}, "yaxis": {"title": "Usage (%)", "range": [0, 100]}},
         }
 
         # System state display
         system_state_display = html.Div([
-            html.Div(f"CPU Usage: {system_state.get('cpu_usage', 'N/A')}%", style={"font-size": "16px", "font-weight": "bold"}),
+            html.Div(f"CPU Usage: {cpu_usage}%", style={"font-size": "16px", "font-weight": "bold"}),
             html.Div(f"Memory Available: {system_state.get('memory_available', 'N/A')} MB", style={"font-size": "16px"}),
             html.Div(f"Disk Usage: {system_state.get('disk_usage', 'N/A')}%", style={"font-size": "16px"}),
         ])
