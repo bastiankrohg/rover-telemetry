@@ -27,23 +27,26 @@ app.layout = html.Div([
         html.H1("Rover Telemetry Dashboard", className="text-center my-4"),
         html.Div(id="backend-status", className="text-center my-2", style={"font-size": "1.5em", "font-weight": "bold"}),
         dbc.Row([
-            dbc.Col(dcc.Graph(id="path-trace", style={"height": "360px"}), width=6),
+            dbc.Col(dcc.Graph(id="path-trace", style={"height": "500px"}), width=6),
             dbc.Col(html.Div([
-                html.Div("Live Video Feed", style={"text-align": "center", "font-size": "20px"}),
-                html.Img(
-                    src="http://127.0.0.1:8081/",
-                    style={"width": "100%", "height": "auto", "border": "2px solid black"}
-                ),
-            ], style={"height": "360px", "background-color": "lightgray"}), width=6),
-        ]),
+                html.Div("Live Video Feed", style={"text-align": "center", "font-size": "20px", "margin-bottom": "10px"}),
+                html.Div(
+                    html.Img(
+                        src="http://127.0.0.1:8081/",
+                        style={"width": "100%", "height": "100%", "object-fit": "contain", "border": "2px solid black"}
+                    ),
+                    style={"height": "520px", "background-color": "lightgray", "padding": "10px"}
+                )
+            ]), width=6),
+        ], className="mb-4"),
         dbc.Row([
-            dbc.Col(html.Div(id="system-state-display"), width=3),
-            dbc.Col(html.Div(id="position-display"), width=3),
-            dbc.Col(html.Div(id="heading-display"), width=3),
-            dbc.Col(html.Div(id="battery-visual"), width=3),
+            dbc.Col(html.Div(id="system-state-display", style={"padding": "10px"}), width=3),
+            dbc.Col(html.Div(id="position-display", style={"padding": "10px"}), width=3),
+            dbc.Col(html.Div(id="heading-display", style={"padding": "10px"}), width=3),
+            dbc.Col(html.Div(id="battery-visual", style={"padding": "10px"}), width=3),
         ], className="mb-3"),
         dbc.Row([
-            dbc.Col(html.Div(id="proximity-indicator"), width=6),
+            dbc.Col(html.Div(id="proximity-indicator", style={"padding": "10px"}), width=6),
         ]),
         html.Hr(),
         html.H3("Sensor Measurement History", className="text-center my-4", style={"font-weight": "bold"}),
