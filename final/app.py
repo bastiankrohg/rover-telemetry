@@ -1,20 +1,18 @@
 import threading
 from udp_listener import start_udp_listener
-from dashboard_layout import app
+from dashboard_layout import app, update_dashboard
 from mjpeg_server import start_mjpeg_server
 
 def start_mjpeg():
-    """Start the MJPEG server for video streaming."""
+    """Start the MJPEG server."""
     try:
-        print("Starting MJPEG server...")
-        start_mjpeg_server(port=8081)  # MJPEG server on port 8081
+        start_mjpeg_server(port=8081)
     except Exception as e:
         print(f"Error starting MJPEG server: {e}")
 
 def start_dash():
-    """Start the Dash app for the telemetry dashboard."""
-    print("Starting Dash app...")
-    app.run_server(debug=True)
+    """Start the Dash app."""
+    app.run_server(debug=True, use_reloader=False)
 
 if __name__ == "__main__":
     print(f"Main process ID (PID): {threading.get_ident()}")

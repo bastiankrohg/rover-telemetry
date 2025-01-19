@@ -26,7 +26,7 @@ app.layout = html.Div([
             dbc.Col(html.Div(id="battery-visual"), width=3),
         ], className="mb-3"),
         dbc.Row([
-            dbc.Col(html.Div(id="proximity-indicator", className="text-center my-2"), width=6),
+            dbc.Col(html.Div(id="proximity-indicator"), width=6),
         ]),
         html.Hr(),
         html.H3("Sensor Measurement History", className="text-center my-4", style={"font-weight": "bold"}),
@@ -36,3 +36,60 @@ app.layout = html.Div([
         ]),
     ], fluid=True),
 ])
+
+# Callback to update the dashboard
+from dash.dependencies import Output, Input
+import json
+
+@app.callback(
+    [
+        Output("backend-status", "children"),
+        Output("path-trace", "figure"),
+        Output("system-state-display", "children"),
+        Output("position-display", "children"),
+        Output("heading-display", "children"),
+        Output("battery-visual", "children"),
+        Output("proximity-indicator", "children"),
+        Output("battery-graph", "figure"),
+        Output("ultrasound-graph", "figure"),
+    ],
+    [Input("update-interval", "n_intervals")]
+)
+def update_dashboard(n_intervals):
+    from udp_listener import last_received_data
+
+    try:
+        telemetry_data = json.loads(last_received_data)
+
+        # Process telemetry data
+        position = telemetry_data["position"]
+        heading = telemetry_data["heading"]
+        battery = telemetry_data["battery_level"]
+        ultrasound = telemetry_data["ultrasound_distance"]
+
+        # Update the dashboard components
+        return (
+            "🟢 Backend Connected",
+            {"data": [{"x": [0], "y": [0], "type": "scatter"}], "layout": {"title": "Path Trace"}},
+            f"System State: OK",
+            f"x: {position['x']:.2f}, y: {position['y']:.2f}",
+            f"{heading:.2f}°",
+            f"{battery:.2f}%",
+            f"{ultrasound:.2f} m",
+            {"data": [], "layout": {"title": "Battery Over Time"}},
+            {"data": [], "layout": {"title": "Ultrasound Over Time"}},
+        )
+
+    except Exception as e:
+        print(f"Error updating dashboard: {e}")
+        return (
+            "🔴 Backend Disconnected",
+            {},
+            "No telemetry data available",
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A",
+            {},
+            {},
+        )
