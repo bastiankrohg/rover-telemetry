@@ -32,11 +32,13 @@ app.layout = html.Div([
             dbc.Col(html.Div([
                 html.Div("Live Video Feed", style={"text-align": "center", "font-size": "20px", "margin-bottom": "10px"}),
                 html.Div(
-                    html.Img(
-                        src="http://127.0.0.1:8081/",
-                        style={"width": "100%", "height": "100%", "object-fit": "contain"}
-                    ),
-                    style={"height": "520px", "background-color": "lightgray"}
+                    children=[
+                        html.Img(
+                            src="http://127.0.0.1:8081/",
+                            style={"width": "100%", "height": "100%", "object-fit": "contain", "border": "1px solid black"}
+                        )
+                    ],
+                    style={"height": "500px", "background-color": "lightgray"}
                 )
             ]), width=6),
         ], className="mb-4"),
@@ -56,7 +58,7 @@ app.layout = html.Div([
             dbc.Col(dcc.Graph(id="ultrasound-graph", style={"height": "400px"}), width=6),
         ]),
         dbc.Row([
-            dbc.Col(dcc.Graph(id="cpu-graph", style={"height": "400px"}), width=6),  # Added CPU graph
+            dbc.Col(dcc.Graph(id="cpu-graph", style={"height": "400px"}), width=6),
         ]),
     ], fluid=True),
 ])
