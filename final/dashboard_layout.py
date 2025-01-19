@@ -1,9 +1,14 @@
 from dash import Dash, dcc, html
 import dash_bootstrap_components as dbc
+from dash.dependencies import Output, Input
+import json
+from udp_listener import last_received_data  # Ensure this is the correct import for telemetry data
 
+# Initialize Dash app
 app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 app.title = "Rover Telemetry Dashboard"
 
+# Define the app layout
 app.layout = html.Div([
     dcc.Interval(id="update-interval", interval=1000, n_intervals=0),
     dbc.Container([
@@ -14,7 +19,7 @@ app.layout = html.Div([
             dbc.Col(html.Div([
                 html.Div("Live Video Feed", style={"text-align": "center", "font-size": "20px"}),
                 html.Img(
-                    src="http://127.0.0.1:8081/",
+                    src="http://127.0.0.1:8081/",  # MJPEG server URL
                     style={"width": "100%", "height": "auto", "border": "2px solid black"}
                 ),
             ], style={"height": "360px", "background-color": "lightgray"}), width=6),
@@ -38,9 +43,6 @@ app.layout = html.Div([
 ])
 
 # Callback to update the dashboard
-from dash.dependencies import Output, Input
-import json
-
 @app.callback(
     [
         Output("backend-status", "children"),
@@ -56,40 +58,63 @@ import json
     [Input("update-interval", "n_intervals")]
 )
 def update_dashboard(n_intervals):
-    from udp_listener import last_received_data
-
     try:
         telemetry_data = json.loads(last_received_data)
 
-        # Process telemetry data
+        # Extract telemetry data
         position = telemetry_data["position"]
         heading = telemetry_data["heading"]
         battery = telemetry_data["battery_level"]
         ultrasound = telemetry_data["ultrasound_distance"]
+        system_state = telemetry_data.get("system_state", {})
 
-        # Update the dashboard components
+        # Prepare data for dashboard
+        path_trace_figure = {
+            "data": [
+                {
+                    "x": [position["x"]],
+                    "y": [position["y"]],
+                    "type": "scatter",
+                    "mode": "lines+markers",
+                    "name": "Path",
+                },
+            ],
+            "layout": {"title": "Path Trace", "xaxis": {"range": [-10, 10]}, "yaxis": {"range": [-10, 10]}},
+        }
+
+        battery_graph = {
+            "data": [{"x": [0], "y": [battery], "type": "line"}],
+            "layout": {"title": "Battery Over Time", "xaxis": {"title": "Time"}, "yaxis": {"title": "%"}},
+        }
+
+        ultrasound_graph = {
+            "data": [{"x": [0], "y": [ultrasound], "type": "line"}],
+            "layout": {"title": "Ultrasound Over Time", "xaxis": {"title": "Time"}, "yaxis": {"title": "Distance (m)"}},
+        }
+
+        # Return data to dashboard components
         return (
             "🟢 Backend Connected",
-            {"data": [{"x": [0], "y": [0], "type": "scatter"}], "layout": {"title": "Path Trace"}},
-            f"System State: OK",
+            path_trace_figure,
+            f"CPU: {system_state.get('cpu_usage', 'N/A')}% | Memory: {system_state.get('memory_available', 'N/A')} MB",
             f"x: {position['x']:.2f}, y: {position['y']:.2f}",
             f"{heading:.2f}°",
             f"{battery:.2f}%",
             f"{ultrasound:.2f} m",
-            {"data": [], "layout": {"title": "Battery Over Time"}},
-            {"data": [], "layout": {"title": "Ultrasound Over Time"}},
+            battery_graph,
+            ultrasound_graph,
         )
 
     except Exception as e:
         print(f"Error updating dashboard: {e}")
         return (
             "🔴 Backend Disconnected",
-            {},
-            "No telemetry data available",
+            {"data": [], "layout": {"title": "Path Trace"}},
+            "No system state available",
             "N/A",
             "N/A",
             "N/A",
             "N/A",
-            {},
-            {},
+            {"data": [], "layout": {"title": "Battery Over Time"}},
+            {"data": [], "layout": {"title": "Ultrasound Over Time"}},
         )
