@@ -1,7 +1,7 @@
 import threading
 from udp_listener import start_udp_listener
 from dashboard_layout import app, update_dashboard
-from mjpeg_server import start_mjpeg_server
+from mjpeg_server import start_mjpeg_server, start_camera_stream
 
 def start_mjpeg():
     """Start the MJPEG server."""
@@ -20,6 +20,8 @@ if __name__ == "__main__":
     # Start the MJPEG server in a separate thread
     mjpeg_thread = threading.Thread(target=start_mjpeg, daemon=True)
     mjpeg_thread.start()
+
+    threading.Thread(target=start_camera_stream, daemon=True).start()
 
     # Start the UDP listener in a separate thread
     udp_thread = threading.Thread(target=start_udp_listener, daemon=True)

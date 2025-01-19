@@ -4,6 +4,7 @@ from dash.dependencies import Output, Input
 import json
 import time
 from queue import Empty
+from collections import deque
 from udp_listener import telemetry_queue  # Correct import
 
 # Initialize Dash app
@@ -14,6 +15,10 @@ app.title = "Rover Telemetry Dashboard"
 last_valid_data = None
 last_valid_time = 0
 DATA_TIMEOUT = 5  # seconds
+
+
+# Initialize path history
+path_history = deque(maxlen=1000)
 
 # Define the app layout
 app.layout = html.Div([
@@ -88,21 +93,32 @@ def update_dashboard(n_intervals):
         ultrasound = telemetry_data["ultrasound_distance"]
         system_state = telemetry_data.get("system_state", {})
 
-        # Prepare data for dashboard components
+        # Prepare data for path trace
+        path_history.append((position["x"], position["y"]))  # Add current position to history
+
         path_trace_figure = {
             "data": [
+                {
+                    "x": [p[0] for p in path_history],
+                    "y": [p[1] for p in path_history],
+                    "type": "scatter",
+                    "mode": "lines+markers",
+                    "line": {"color": "blue"},
+                    "name": "Path History",
+                },
                 {
                     "x": [position["x"]],
                     "y": [position["y"]],
                     "type": "scatter",
-                    "mode": "lines+markers",
-                    "name": "Path",
+                    "mode": "markers",
+                    "marker": {"color": "red", "size": 10},
+                    "name": "Current Position",
                 },
             ],
             "layout": {
                 "title": "Path Trace",
-                "xaxis": {"range": [-20, 20]},
-                "yaxis": {"range": [-20, 20]}
+                "xaxis": {"range": [-20, 20], "title": "X Position"},
+                "yaxis": {"range": [-20, 20], "title": "Y Position"},
             },
         }
 
@@ -116,11 +132,11 @@ def update_dashboard(n_intervals):
             "layout": {"title": "Ultrasound Over Time", "xaxis": {"title": "Time"}, "yaxis": {"title": "Distance (m)"}},
         }
 
-        system_state_display = (
-            f"CPU: {system_state.get('cpu_usage', 'N/A')}% | "
-            f"Memory: {system_state.get('memory_available', 'N/A')} MB | "
-            f"Disk: {system_state.get('disk_usage', 'N/A')}%"
-        )
+        system_state_display = html.Div([
+            html.Div(f"CPU Usage: {system_state.get('cpu_usage', 'N/A')}%", style={"font-size": "16px", "font-weight": "bold"}),
+            html.Div(f"Memory Available: {system_state.get('memory_available', 'N/A')} MB", style={"font-size": "16px"}),
+            html.Div(f"Disk Usage: {system_state.get('disk_usage', 'N/A')}%", style={"font-size": "16px"}),
+        ])
 
         # Return updates for dashboard
         return (
