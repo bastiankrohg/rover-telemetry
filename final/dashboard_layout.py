@@ -1,13 +1,19 @@
-import json
 from dash import Dash, dcc, html
 import dash_bootstrap_components as dbc
 from dash.dependencies import Output, Input
+import json
+import time
 from queue import Empty
-from udp_listener import telemetry_queue
+from udp_listener import telemetry_queue  # Correct import
 
 # Initialize Dash app
 app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 app.title = "Rover Telemetry Dashboard"
+
+# Global variable to cache the last valid telemetry data
+last_valid_data = None
+last_valid_time = 0
+DATA_TIMEOUT = 5  # seconds
 
 # Define the app layout
 app.layout = html.Div([
@@ -58,16 +64,22 @@ app.layout = html.Div([
     [Input("update-interval", "n_intervals")]
 )
 def update_dashboard(n_intervals):
-    try:
-        telemetry_data = None
+    global last_valid_data, last_valid_time
 
-        # Attempt to get data from the queue
+    try:
+        # Attempt to retrieve data from the queue
+        telemetry_data = None
         try:
             telemetry_data = telemetry_queue.get_nowait()
+            last_valid_data = json.loads(telemetry_data)  # Parse JSON data
+            last_valid_time = time.time()  # Update the last valid data time
         except Empty:
-            raise ValueError("No telemetry data available yet.")
+            # If no new data, check if cached data is still valid
+            if time.time() - last_valid_time > DATA_TIMEOUT:
+                raise ValueError("No telemetry data available yet.")
 
-        telemetry_data = json.loads(telemetry_data)
+        # Use the latest valid data
+        telemetry_data = last_valid_data
 
         # Extract telemetry data
         position = telemetry_data["position"]
