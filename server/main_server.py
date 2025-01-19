@@ -2,7 +2,7 @@ import socket
 import json
 import time
 import math
-from system_monitor import get_system_state  # Import system state monitoring module
+from server.system_monitor import get_system_state  # Import system state monitoring module
 
 # UDP Configuration
 UDP_IP = "127.0.0.1"  # TODO LG Replace with the actual IP address
