@@ -1,3 +1,9 @@
 [submodule "telemetry_proto"]
 	path = telemetry_proto
 	url = https://github.com/bastiankrohg/telemetry_proto.git
+[submodule "pi_telemetry"]
+	path = pi_telemetry
+	url = https://github.com/bastiankrohg/pi_telemetry
+[submodule "coral_telemetry"]
+	path = coral_telemetry
+	url = https://github.com/bastiankrohg/coral_telemetry
